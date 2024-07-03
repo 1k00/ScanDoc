@@ -51,7 +51,6 @@ struct ContentView: View {
     var body: some View {
         VStack {
             ScanDocCameraView()
-            }
         }
         .onReceive(ScanDocAPI.outputEvent) { event in
             switch event {
