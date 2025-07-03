@@ -10,6 +10,28 @@ import ScanDocSDK
 import CoreNFC
 import NFCPassportReader
 
+func convertToYYMMDD(from input: String?) -> String {
+    if let input = input, !input.isEmpty {
+        let parts = input.split(separator: ".")
+        if parts.count == 3,
+           let day = parts.first,
+           let month = parts.dropFirst().first,
+           let year = parts.last,
+           year.count == 4 {
+            let yy = year.suffix(2)
+            return "\(yy)\(month)\(day)"
+        }
+    }
+    // Fallback to current date
+    let now = Date()
+    let calendar = Calendar.current
+    let year = calendar.component(.year, from: now) % 100
+    let month = calendar.component(.month, from: now)
+    let day = calendar.component(.day, from: now)
+    return String(format: "%02d%02d%02d", year, month, day)
+}
+
+
 struct PassportDetailView: View {
     let passport: NFCPassportModel
 
@@ -57,11 +79,16 @@ struct PassportScannerView: View {
 
             do {
                 let passportReader = PassportReader()
+                // Set the masterListURL on the Passport Reader to allow auto passport verification
+                let masterListURL = Bundle.main.url(forResource: "masterList", withExtension: ".pem")!
+                passportReader.setMasterListURL( masterListURL )
+                
+                // Set whether to use the new Passive Authentication verification method (default true) or the old OpenSSL CMS verifiction
+                passportReader.passiveAuthenticationUsesOpenSSL = true
+                print("Mrz key used for scanning: \(mrzKey)")
                 let passport = try await passportReader.readPassport(
                     mrzKey: mrzKey,
-                    skipCA: true,
-                    skipPACE: true,
-                    useExtendedMode: true,
+                    useExtendedMode: false,
                     customDisplayMessage: customMessageHandler
                 )
 
@@ -244,10 +271,10 @@ struct ContentView: View {
                     self.showCameraView = false
                     
                     if let documentNumber = fields.first(where: { $0.key == .documentNumber })?.value,
-                       let dateOfBirth = fields.first(where: { $0.key == .birthDate })?.value,
-                       let expiryDate = fields.first(where: { $0.key == .expiryDate })?.value {
+                       let dateOfBirth: String? = convertToYYMMDD(from: fields.first(where: { $0.key == .birthDate })?.value),
+                       let expiryDate: String? = convertToYYMMDD(from: fields.first(where: { $0.key == .expiryDate })?.value)  {
                         let passportUtils = PassportUtils()
-                        self.mrzKey = passportUtils.getMRZKey(passportNumber: documentNumber, dateOfBirth: dateOfBirth, dateOfExpiry: expiryDate)
+                        self.mrzKey = passportUtils.getMRZKey(passportNumber: documentNumber, dateOfBirth: dateOfBirth ?? "", dateOfExpiry: expiryDate ?? "")
                         
                         print("MRZ Key: \(self.mrzKey ?? "N/A")")
                         print("Document Number: \(documentNumber)")
